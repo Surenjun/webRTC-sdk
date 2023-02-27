@@ -1,2 +1,3 @@
-import * as SockJS from 'sockjs-client/index';
+
+declare const RTCPeer: ClassDecorator
 

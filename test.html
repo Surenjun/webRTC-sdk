@@ -3,13 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            display: flex;
+            display: -webkit-flex;
+            justify-content: space-around;
+            padding-top: 20px;
+        }
+
+        .video-box {
+            position: relative;
+            width: 800px;
+            height: 400px;
+        }
+
+        #remote-video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+            border: 1px solid #eee;
+            background-color: #F2F6FC;
+        }
+
+        #local-video {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 240px;
+            height: 120px;
+            object-fit: cover;
+            border: 1px solid #eee;
+            background-color: #EBEEF5;
+        }
+
+        .start-button {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 100px;
+            /*display: none;*/
+            line-height: 40px;
+            outline: none;
+            color: #fff;
+            background-color: #409eff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+        }
+
+        .logger {
+            width: 40%;
+            padding: 14px;
+            line-height: 1.5;
+            color: #4fbf40;
+            border-radius: 6px;
+            background-color: #272727;
+        }
+
+        .logger .error {
+            color: #DD4A68;
+        }
+    </style>
 </head>
 <body>
+<div class="container">
+    <div class="video-box">
+        <video id="remote-video"></video>
+        <video id="local-video" muted></video>
+        <button class="start-button" onclick="startLive()">start</button>
+    </div>
+</div>
+<script>
+
+</script>
+<script src="./dist/index.js"></script>
+<script>
+    const peer = new RTCPeer({
+        url: 'ws://localhost:7001/',
+        type: 'offer',
+        myVideoEle: document.querySelector('#local-video'),
+        answerELes: [document.getElementById('remote-video')],
+        onError: () => console.log('error'),
+        //连接成功的回调
+        onOpen: () => {
+            console.log('信令服务器连接成功')
+        },
+        //连收到消息的回调
+        onMessage: (messages) => {
+            console.log('收到服务端消息', messages)
+        },
+        // 播放远程视频流的回调
+        onPlay: () => {
+            console.log('正在播放远程视频流')
+        }
+    });
+
+    const button = document.querySelector('.start-button');
+
+    function startLive() {
+        button.style.display = 'none';
+        peer.startSession();
+    }
 
 
-  <script src="./dist/vue.js"></script>
-  <script>
-      const a = new RTCPeer()
-  </script>
+</script>
 </body>
 </html>

@@ -1,25 +1,12 @@
-import RTCPeer from './modules/index';
+import RTCPeer from './modules';
 
-(()=>{
+declare global {
+    interface Window {
+        RTCPeer: typeof RTCPeer;
+    }
+}
 
-    const peer = new RTCPeer({
-        url:'ws://localhost:7001/',
-        type:'offer',
-        myVideoEle:document.getElementById('video'),
-        answerELes:[document.getElementById('video1')],
+((RTCPeer)=>{
+    window.RTCPeer = RTCPeer
+})(RTCPeer)
 
-        onError:()=>console.log('error'),
-
-        onOpen:()=>console.log('open'),
-
-        onMessage:()=>console.log('message')
-    });
-
-    setTimeout(()=>{
-        //发起通话
-        peer.startPeer()
-    })
-
-
-
-})();

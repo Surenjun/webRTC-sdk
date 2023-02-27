@@ -1,4 +1,6 @@
-import {PARAMS} from '../types';
+import {PARAMS,MESSAGETYPE,MESSAGE,STATUS} from '../types';
+
+
 /**
  * @Description: RTC客户端服务
  * @author: Renjun Su
@@ -8,9 +10,15 @@ import {PARAMS} from '../types';
 class RTCPeer{
 
     //客户端id
-    public currentPeerId: string | undefined;
-    public myVideoEle: Element | null;
-
+    public currentPeerId?: string ;
+    public myVideoEle?: HTMLVideoElement | null;
+    public answerELes?: (HTMLVideoElement | null)[];
+    public peer?: RTCPeerConnection;
+    public status ?: STATUS;
+    private socket?: WebSocket
+    private events?: {
+        onPlay?:()=>void
+    }
     private message:{
         log:(msg:string) =>void,
         error:(msg:string) => void
@@ -25,14 +33,17 @@ class RTCPeer{
                 throw Error(msg);
             }
         };
-        const {myVideoEle} = param;
-        this.myVideoEle = myVideoEle
+        const {myVideoEle,answerELes} = param;
+        this.myVideoEle = myVideoEle;
+        this.answerELes = answerELes;
+        this.status = 0;
+        this.listenVideoPlay()
         this.init(param);
     }
 
     //创建socket服务，并监听
     private  init (param:PARAMS){
-        const {url,onOpen,onError,onMessage,type,myVideoEle} = param;
+        const {url,onOpen,onError,onMessage,onPlay,type,myVideoEle} = param;
         const {message} = this;
 
         //生成客户端id
@@ -41,13 +52,18 @@ class RTCPeer{
 
         //连接远程服务器
         const socket = new WebSocket(`${url}?peerId=${peerId}`);
+        this.socket = socket;
+
+        this.events = {
+            onPlay
+        }
 
         //socket连接监听
         socket.onopen= async ()=> {
             message.log('信令服务器连接成功');
             // 心跳监听
             await (onOpen && onOpen());
-            // await this.heartCheckFn(socket);
+            this.startPeer()
         };
 
         //socket错误监听
@@ -58,47 +74,153 @@ class RTCPeer{
 
         //socket信息监听
         socket.onmessage = e => {
-            const { type, sdp, iceCandidate } = JSON.parse(e.data);
-            console.log(`收到服务器信息:${e.data}`);
-            onMessage && onMessage(e.data);
+            const {peer,currentPeerId,lisenSession,status} = this;
+            // const { type, sdp, iceCandidate } = JSON.parse(e.data);
+            const peers = JSON.parse(e.data);
+            const remotePeers = peers.filter((peer:MESSAGE) => peer.peerId !== currentPeerId) || [];
+            if(!remotePeers.length){
+                return
+            }
+
+            //TODO 只考虑一对一的情况
+            const { type, sdp, iceCandidate,peerId } = remotePeers[0];
+            switch (type) {
+                case MESSAGETYPE.ICE:
+                    // ICE交换
+                    peer!.addIceCandidate(iceCandidate);
+                    return
+
+                case MESSAGETYPE.ANSWER:
+                    // 对方接受请求
+                    peer!.setRemoteDescription(new RTCSessionDescription({ type:'answer', sdp }));
+                    this.status = 1;
+                    return
+
+                case MESSAGETYPE.OFFER:
+                    // 收到另外一端的请求
+                    lisenSession(new RTCSessionDescription({ type:'offer', sdp }));
+                    return;
+
+            }
         };
     }
 
-    //socket心跳监听
-    private async heartCheckFn (socket:WebSocket){
-        const currentPeerId = this.currentPeerId;
-        const heartCheck = {
-            timeout: 3000,
-            timeoutObj: null,
-            serverTimeoutObj: null,
-            start: function () {
-                console.log(123);
+    private async peerListen(){
+        const {peer,message,socket,currentPeerId,answerELes,events} = this;
+
+        peer!.ontrack = e => {
+            if (e && e.streams) {
+                message.log('收到对方音频/视频流数据...');
                 //@ts-ignore
-                heartCheck.timeoutObj = setInterval(()=>{
-                    try {
-                        const pingStr = JSON.stringify({type:'ping',peerId:currentPeerId});
-                        socket.send(pingStr);
-                    }catch (e){
-                        console.log(e);
-                        //@ts-ignore
-                        clearInterval(heartCheck.timeoutObj);
-                    }
-                },heartCheck.timeout);
+                events?.onPlay()
+                //@ts-ignore
+                answerELes[0]!.srcObject = e.streams[0];
             }
-         };
-        heartCheck.start();
+        };
+
+        peer!.onicecandidate = e => {
+
+            if (e.candidate) {
+                message.log('搜集并发送候选人');
+                socket!.send(JSON.stringify({
+                    peerId: currentPeerId,
+                    type: `ice`,
+                    iceCandidate: e.candidate
+                }));
+            } else {
+                message.log('候选人收集完成！');
+            }
+        };
 
     }
 
-    //发起webRTC通话
-    public async startPeer (){
-       const myVideoEle = this.myVideoEle;
-       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-       // @ts-ignore
-       //输出本地摄像头
-       myVideoEle && (myVideoEle.srcObject = stream);
+    //创建本地sdp并传输
+    private async startPeer (){
+       const {message,socket,currentPeerId,answerELes} = this;
 
+        // @ts-ignore
+       const PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+       !PeerConnection && message.error('当前浏览器不支持WebRTC！');
+        this.peer = new PeerConnection();
+        this.peerListen()
 
+    }
+
+    //发起通话请求
+    public async startSession(){
+        //获取本地摄像头
+        const {peer,myVideoEle,message,socket,currentPeerId} = this;
+        let stream: MediaStream;
+        try {
+            message.log('尝试调取本地摄像头/麦克风');
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            message.log('摄像头/麦克风获取成功！');
+            // @ts-ignore
+            myVideoEle.srcObject = stream
+        } catch {
+            message.error('摄像头/麦克风获取失败！');
+            return;
+        }
+
+        stream.getTracks().forEach(track => {
+            peer!.addTrack(track, stream);
+        });
+
+        message.log('创建本地SDP');
+        const offer = await peer!.createOffer();
+        await peer!.setLocalDescription(offer);
+        const {type,sdp} = offer;
+        //向服务器更新状态
+        socket!.send(JSON.stringify({type:'offer',peerId:currentPeerId,sdp,status:STATUS.open}));
+        message.log(`传输发起方本地SDP`);
+
+    };
+
+    //收到对方的sdp信息
+    private lisenSession =  async (remotePeer:RTCSessionDescription)=>{
+        const {message,socket,currentPeerId,peer} = this;
+        let stream: MediaStream;
+        try {
+            message.log('尝试调取本地摄像头/麦克风');
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            message.log('摄像头/麦克风获取成功！');
+            // @ts-ignore
+            myVideoEle.srcObject = stream
+        } catch {
+            message.error('摄像头/麦克风获取失败！');
+            return;
+        }
+        stream.getTracks().forEach(track => {
+            peer!.addTrack(track, stream);
+        });
+        await peer!.setRemoteDescription(remotePeer);
+        message.log('创建接收方（应答）SDP');
+        const answer = await peer!.createAnswer();
+
+        const {sdp}= answer
+        this.status = 1;
+        socket!.send(JSON.stringify({sdp,peerId:currentPeerId,type:'answer'}));
+
+        await peer!.setLocalDescription(answer);
+    }
+
+    //摄像头输出
+    private async listenVideoPlay(){
+        const {myVideoEle,answerELes,message} = this;
+
+        //TODO 目前只考虑一对一的情况
+        //@ts-ignore
+        myVideoEle!.onloadeddata = () => {
+            message.log('播放本地视频');
+            //@ts-ignore
+            myVideoEle!.play();
+        }
+        //@ts-ignore
+        answerELes[0]!.onloadeddata = () => {
+            message.log('播放远程视频');
+            //@ts-ignore
+            answerELes[0]!.play();
+        }
 
     }
 
@@ -106,6 +228,7 @@ class RTCPeer{
     public endPeer(){
 
     }
+
 
 
 
