@@ -1,5 +1,5 @@
-import {PARAMS,MESSAGETYPE,MESSAGE,STATUS} from '../types';
-
+import {PARAMS,MESSAGETYPE,MESSAGE,STATUS,USERLIST} from '../types';
+import {getUserList} from "../api";
 
 /**
  * @Description: RTC客户端服务
@@ -15,6 +15,7 @@ class RTCPeer{
     public answerELes?: (HTMLVideoElement | null)[];
     public peer?: RTCPeerConnection;
     public status ?: STATUS;
+    public userList ?: USERLIST[]
     private socket?: WebSocket
     private events?: {
         onPlay?:()=>void
@@ -51,7 +52,8 @@ class RTCPeer{
         this.currentPeerId = peerId;
 
         //连接远程服务器
-        const socket = new WebSocket(`${url}?peerId=${peerId}`);
+        // const socket = new WebSocket(`${url}/${peerId}/2`);
+        const socket = new WebSocket(`${url}/${'surenjun'}/2`);
         this.socket = socket;
 
         this.events = {
@@ -63,6 +65,11 @@ class RTCPeer{
             message.log('信令服务器连接成功');
             // 心跳监听
             await (onOpen && onOpen());
+            // const {currentPeerId} = this;
+
+            // //TODO 获取用户信息 后续还要调整
+            const userlist = await getUserList({});
+            this.userList = userlist.filter(user => user.userId !== 'surenjun')
             this.startPeer()
         };
 
@@ -74,35 +81,85 @@ class RTCPeer{
 
         //socket信息监听
         socket.onmessage = e => {
-            const {peer,currentPeerId,lisenSession,status} = this;
-            // const { type, sdp, iceCandidate } = JSON.parse(e.data);
-            const peers = JSON.parse(e.data);
-            const remotePeers = peers.filter((peer:MESSAGE) => peer.peerId !== currentPeerId) || [];
-            if(!remotePeers.length){
-                return
-            }
-
-            //TODO 只考虑一对一的情况
-            const { type, sdp, iceCandidate,peerId } = remotePeers[0];
-            switch (type) {
-                case MESSAGETYPE.ICE:
-                    // ICE交换
-                    peer!.addIceCandidate(iceCandidate);
-                    return
-
-                case MESSAGETYPE.ANSWER:
-                    // 对方接受请求
+            const {startSession,peer} = this;
+            // TODO
+            const socketMessage = JSON.parse(e.data);
+            const {eventName,data:{candidate,sdp}} = socketMessage
+            // __new_peer
+            // console.log(peer,candidate,'__answer');
+            switch (eventName){
+                case '__new_peer':
+                    startSession()
+                    return;
+                case '__ice_candidate':
+                    peer!.addIceCandidate(candidate);
+                    return;
+                case '__answer':
                     peer!.setRemoteDescription(new RTCSessionDescription({ type:'answer', sdp }));
                     this.status = 1;
                     return
-
-                case MESSAGETYPE.OFFER:
-                    // 收到另外一端的请求
-                    lisenSession(new RTCSessionDescription({ type:'offer', sdp }));
-                    return;
-
             }
+
+
+            return
+            /***************************************************************************/
+
+
+            // const { type, sdp, iceCandidate } = JSON.parse(e.data);
+            // const peers = JSON.parse(e.data);
+            // const remotePeers = peers.filter((peer:MESSAGE) => peer.peerId !== currentPeerId) || [];
+            // if(!remotePeers.length){
+            //     return
+            // }
+            //
+            // //TODO 只考虑一对一的情况
+            // const { type, sdp, iceCandidate,peerId } = remotePeers[0];
+            // switch (type) {
+            //     case MESSAGETYPE.ICE:
+            //         // ICE交换
+            //         peer!.addIceCandidate(iceCandidate);
+            //         return
+            //
+            //     case MESSAGETYPE.ANSWER:
+            //         // 对方接受请求
+            //         peer!.setRemoteDescription(new RTCSessionDescription({ type:'answer', sdp }));
+            //         this.status = 1;
+            //         return
+            //
+            //     case MESSAGETYPE.OFFER:
+            //         // 收到另外一端的请求
+            //         lisenSession(new RTCSessionDescription({ type:'offer', sdp }));
+            //         return;
+            //
+            // }
         };
+    }
+
+    //创建房间
+    public async createRoom(){
+        const socket = this.socket
+        // 创建房间
+        const createData = {
+            eventName:"__create",
+            data:{"roomSize":2,"userID":"surenjun","room":"room-76114891-c0a6-4e"}
+        }
+        socket!.send(JSON.stringify(createData))
+    }
+
+    //邀请别人进入房间
+    public async inviteUser(){
+        // 邀请别人进入房间
+        const socket = this.socket
+        const inviteData = {
+            eventName:"__invite",
+            data:{
+                inviteID:"surenjun",
+                userList:"t1",
+                audioOnly:true,
+                room:"room-76114891-c0a6-4e"
+            }
+        }
+        socket!.send(JSON.stringify(inviteData))
     }
 
     private async peerListen(){
@@ -113,6 +170,9 @@ class RTCPeer{
                 message.log('收到对方音频/视频流数据...');
                 //@ts-ignore
                 events?.onPlay()
+                console.log(e.streams[0]);
+                //@ts-ignore
+                console.log(answerELes[0]);
                 //@ts-ignore
                 answerELes[0]!.srcObject = e.streams[0];
             }
@@ -123,9 +183,14 @@ class RTCPeer{
             if (e.candidate) {
                 message.log('搜集并发送候选人');
                 socket!.send(JSON.stringify({
-                    peerId: currentPeerId,
-                    type: `ice`,
-                    iceCandidate: e.candidate
+                   eventName:'__ice_candidate',
+                   data:{
+                       userID:'t1',
+                       id:'audio',
+                       label:0,
+                       fromID:'surenjun',
+                       candidate: e.candidate.candidate
+                   }
                 }));
             } else {
                 message.log('候选人收集完成！');
@@ -147,13 +212,13 @@ class RTCPeer{
     }
 
     //发起通话请求
-    public async startSession(){
+    public  startSession = async ()=>{
         //获取本地摄像头
         const {peer,myVideoEle,message,socket,currentPeerId} = this;
         let stream: MediaStream;
         try {
             message.log('尝试调取本地摄像头/麦克风');
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
             message.log('摄像头/麦克风获取成功！');
             // @ts-ignore
             myVideoEle.srcObject = stream
@@ -171,7 +236,17 @@ class RTCPeer{
         await peer!.setLocalDescription(offer);
         const {type,sdp} = offer;
         //向服务器更新状态
-        socket!.send(JSON.stringify({type:'offer',peerId:currentPeerId,sdp,status:STATUS.open}));
+        socket!.send(JSON.stringify({
+            eventName:'__offer',
+            data:{
+                userID:'t1',
+                fromID:'surenjun',
+                label:0,
+                id:'audio',
+                sdp
+            },
+            // status:STATUS.open
+        }));
         message.log(`传输发起方本地SDP`);
 
     };
