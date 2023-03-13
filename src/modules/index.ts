@@ -81,7 +81,7 @@ class RTCPeer{
 
         //socket信息监听
         socket.onmessage = e => {
-            const {startSession,peer} = this;
+            const {startSession,peer,lisenSession} = this;
             // TODO
             const socketMessage = JSON.parse(e.data);
             const {eventName,data:{candidate,sdp,room}} = socketMessage
@@ -101,8 +101,8 @@ class RTCPeer{
                     }))
                     return;
 
-                case '__new_peer':case '__peers':
-                    startSession(eventName === '__new_peer'?'__offer':'__answer')
+                case '__new_peer':
+                    startSession('__offer')
                     return;
 
                 case '__ice_candidate':
@@ -114,10 +114,14 @@ class RTCPeer{
                     });
                     return;
 
-                case '__answer':case '__offer':
+                case '__answer':
                     peer!.setRemoteDescription(new RTCSessionDescription({ type:'answer', sdp }));
                     this.status = 1;
                     return
+
+                case '__offer':
+                    lisenSession(new RTCSessionDescription({ type:'offer', sdp }));
+                    return;
             }
 
 
@@ -294,7 +298,16 @@ class RTCPeer{
 
         const {sdp}= answer
         this.status = 1;
-        socket!.send(JSON.stringify({sdp,peerId:currentPeerId,type:'answer'}));
+        socket!.send(JSON.stringify({
+            eventName:'__answer',
+            data:{
+                userID:'t1',
+                fromID:'surenjun',
+                label:0,
+                id:'audio',
+                sdp
+            }}
+        ));
 
         await peer!.setLocalDescription(answer);
     }
