@@ -84,17 +84,37 @@ class RTCPeer{
             const {startSession,peer} = this;
             // TODO
             const socketMessage = JSON.parse(e.data);
-            const {eventName,data:{candidate,sdp}} = socketMessage
+            const {eventName,data:{candidate,sdp,room}} = socketMessage
             // __new_peer
             // console.log(peer,candidate,'__answer');
             switch (eventName){
-                case '__new_peer':
-                    startSession()
+
+                case '__invite':
+                    //TODO
+                    alert('接收通知')
+                    socket.send(JSON.stringify({
+                       eventName:'__join',
+                        data:{
+                           userID:'surenjun',
+                           room
+                        }
+                    }))
                     return;
+
+                case '__new_peer':case '__peers':
+                    startSession(eventName === '__new_peer'?'__offer':'__answer')
+                    return;
+
                 case '__ice_candidate':
-                    peer!.addIceCandidate(candidate);
+                    peer!.addIceCandidate({
+                        candidate,
+                        sdpMLineIndex:0,
+                        sdpMid:'0',
+                        usernameFragment:candidate.split('')[-4]
+                    });
                     return;
-                case '__answer':
+
+                case '__answer':case '__offer':
                     peer!.setRemoteDescription(new RTCSessionDescription({ type:'answer', sdp }));
                     this.status = 1;
                     return
@@ -155,7 +175,7 @@ class RTCPeer{
             data:{
                 inviteID:"surenjun",
                 userList:"t1",
-                audioOnly:true,
+                audioOnly:false,
                 room:"room-76114891-c0a6-4e"
             }
         }
@@ -212,13 +232,13 @@ class RTCPeer{
     }
 
     //发起通话请求
-    public  startSession = async ()=>{
+    public  startSession = async (eventName:string)=>{
         //获取本地摄像头
         const {peer,myVideoEle,message,socket,currentPeerId} = this;
         let stream: MediaStream;
         try {
             message.log('尝试调取本地摄像头/麦克风');
-            stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             message.log('摄像头/麦克风获取成功！');
             // @ts-ignore
             myVideoEle.srcObject = stream
@@ -237,7 +257,7 @@ class RTCPeer{
         const {type,sdp} = offer;
         //向服务器更新状态
         socket!.send(JSON.stringify({
-            eventName:'__offer',
+            eventName,
             data:{
                 userID:'t1',
                 fromID:'surenjun',
