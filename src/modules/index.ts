@@ -14,6 +14,8 @@ class RTCPeer{
     public myVideoEle?: HTMLVideoElement | null;
     public answerELes?: (HTMLVideoElement | null)[];
     public peer?: RTCPeerConnection;
+    //是否是发起方
+    public isOffer?:Boolean
     public status ?: STATUS;
     public userList ?: USERLIST[]
     private socket?: WebSocket
@@ -81,16 +83,13 @@ class RTCPeer{
 
         //socket信息监听
         socket.onmessage = e => {
-            const {startSession,peer,lisenSession} = this;
+            const {startSession,peer,lisenSession,isOffer} = this;
             // TODO
             const socketMessage = JSON.parse(e.data);
             const {eventName,data:{candidate,sdp,room}} = socketMessage
-            // __new_peer
-            // console.log(peer,candidate,'__answer');
             switch (eventName){
 
                 case '__invite':
-                    //TODO
                     alert('接收通知')
                     socket.send(JSON.stringify({
                        eventName:'__join',
@@ -106,13 +105,17 @@ class RTCPeer{
                     return;
 
                 case '__ice_candidate':
-                    peer!.addIceCandidate({
-                        candidate,
-                        sdpMLineIndex:0,
-                        sdpMid:'0',
-                        usernameFragment:candidate.split('')[-4]
-                    });
+                    if(isOffer){
+                        const ufragIndex = candidate.split(' ').indexOf('ufrag')
+                        peer!.addIceCandidate({
+                            candidate,
+                            sdpMLineIndex:0,
+                            sdpMid:'0',
+                            usernameFragment:candidate.split(' ')[ufragIndex+1]
+                        });
+                    }
                     return;
+
 
                 case '__answer':
                     peer!.setRemoteDescription(new RTCSessionDescription({ type:'answer', sdp }));
@@ -178,7 +181,7 @@ class RTCPeer{
             eventName:"__invite",
             data:{
                 inviteID:"surenjun",
-                userList:"t1",
+                userList:"t2",
                 audioOnly:false,
                 room:"room-76114891-c0a6-4e"
             }
@@ -209,7 +212,7 @@ class RTCPeer{
                 socket!.send(JSON.stringify({
                    eventName:'__ice_candidate',
                    data:{
-                       userID:'t1',
+                       userID:'t2',
                        id:'audio',
                        label:0,
                        fromID:'surenjun',
@@ -242,7 +245,7 @@ class RTCPeer{
         let stream: MediaStream;
         try {
             message.log('尝试调取本地摄像头/麦克风');
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ video: {frameRate:60 }, audio: true });
             message.log('摄像头/麦克风获取成功！');
             // @ts-ignore
             myVideoEle.srcObject = stream
@@ -259,11 +262,12 @@ class RTCPeer{
         const offer = await peer!.createOffer();
         await peer!.setLocalDescription(offer);
         const {type,sdp} = offer;
+        this.isOffer = true
         //向服务器更新状态
         socket!.send(JSON.stringify({
             eventName,
             data:{
-                userID:'t1',
+                userID:'t2',
                 fromID:'surenjun',
                 label:0,
                 id:'audio',
@@ -301,7 +305,7 @@ class RTCPeer{
         socket!.send(JSON.stringify({
             eventName:'__answer',
             data:{
-                userID:'t1',
+                userID:'t2',
                 fromID:'surenjun',
                 label:0,
                 id:'audio',
