@@ -51,4 +51,9 @@ enum MESSAGETYPE  {
     ANSWER = 'answer'
 }
 
-export {PARAMS,MESSAGEFn,MESSAGE ,MESSAGETYPE,STATUS};
+interface USERLIST{
+  userId:string,
+  avatar:string,
+}[]
+
+export {PARAMS,MESSAGEFn,MESSAGE,USERLIST ,MESSAGETYPE,STATUS};
