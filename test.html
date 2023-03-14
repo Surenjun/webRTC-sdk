@@ -96,7 +96,7 @@
 <script>
 
 </script>
-<script src="./dist/index.js"></script>
+<script src="./dist/webRTC-duolun.js"></script>
 <script>
 
     // const request = axios.create({
@@ -118,6 +118,10 @@
         myVideoEle: document.querySelector('#local-video'),
         answerELes: [document.getElementById('remote-video')],
         onError: () => console.log('error'),
+        //
+        onInvited(){
+
+        },
         //连接成功的回调
         onOpen: () => {
             console.log('信令服务器连接成功')
@@ -133,12 +137,19 @@
         }
     });
 
+    //创建房间
     function createRoom(){
         peer.createRoom()
     }
 
+    //邀请别人进入房间
     function inviteUser(){
         peer.inviteUser()
+    }
+
+    //同意邀请
+    function agreeInvite() {
+        peer.startSession();
     }
     //
     // const button = document.querySelector('.start-button');
