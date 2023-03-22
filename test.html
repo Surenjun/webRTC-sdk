@@ -118,24 +118,18 @@
         myVideoEle: document.querySelector('#local-video'),
         answerELes: [document.getElementById('remote-video')],
         onError: () => console.log('error'),
-        //
-        onInvited(){
 
+        //收到别人邀请
+        onInvited(room){
+            console.log(room);
         },
-        //连接成功的回调
-        onOpen: () => {
-            console.log('信令服务器连接成功')
-        },
-        //连收到消息的回调
-        onMessage: (messages) => {
-            console.log('收到服务端消息', messages)
-        },
-        // 播放远程视频流的回调
-        onPlay: () => {
-            console.log('正在播放远程视频流')
-
-        }
     });
+
+    //收到邀请
+    peer.onInvited = async function(room) {
+        alert('接收通知',room)
+        //
+    }
 
     //创建房间
     function createRoom(){

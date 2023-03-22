@@ -11,6 +11,8 @@ class DuolunSocket{
     public roomId ?:string
 
     public socket: WebSocket
+    
+    //远程用户列表
     public userList ?: USERLIST[]
 
     private message:{
@@ -82,6 +84,7 @@ class DuolunSocket{
                 sdp
             }
         }
+        socket.send(JSON.stringify(offerData));
         message.log(`传输发起方本地SDP`);
     }
 

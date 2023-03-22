@@ -15,10 +15,7 @@ interface PARAMS {
     //绑定的video元素
     myVideoEle: HTMLVideoElement | null
     answerELes: (HTMLVideoElement | null)[]
-    onError?: () => void,
-    onOpen?: () => void
-    onMessage?: (data: any) => void
-    onPlay?: () => void
+    onInvited?: () => void,
 }
 
 interface MESSAGEFn{

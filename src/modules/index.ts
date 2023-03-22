@@ -24,6 +24,7 @@ class RTCPeer{
     private duolunsocket?:typeof DuolunSocket.prototype
     private events?: {
         onPlay?:()=>void
+        onInvited?:()=>void
     }
     private message:{
         log:(msg:string) =>void,
@@ -49,7 +50,7 @@ class RTCPeer{
 
     //创建socket服务，并监听
     private  init (param:PARAMS){
-        const {url,onPlay} = param;
+        const {url,onInvited} = param;
         const {startPeer,listenVideoPlay,handleMessage} = this;
 
         //连接远程服务器
@@ -59,7 +60,7 @@ class RTCPeer{
         listenVideoPlay();
         //创建本地sdp
         startPeer()
-        this.events = {onPlay}
+        this.events = {onInvited}
 
         //socket信息监听
         duolunSocket.socket.onmessage = async e => {
@@ -70,15 +71,14 @@ class RTCPeer{
     //socket消息处理
     private async handleMessage(data:string){
         const socketMessage = JSON.parse(data);
-        const {startSession,peer,listenSession,isOffer,duolunsocket} = this;
+        const {startSession,peer,listenSession,isOffer,duolunsocket,onInvited} = this;
         const {eventName,data:{candidate,sdp,room}} = socketMessage;
 
         switch (eventName.split('__')[1]){
 
             //收到对方邀请通话
             case 'invite':
-                alert('接收通知')
-                await duolunsocket!.joinRoom(room)
+                await onInvited(room)
                 break;
 
             //对方接受通话邀请
@@ -108,6 +108,10 @@ class RTCPeer{
                 await listenSession(new RTCSessionDescription({ type:'offer', sdp }));
                 break;
         }
+    }
+
+    public async onInvited(room:string){
+
     }
 
     private peerListen(){
@@ -227,9 +231,6 @@ class RTCPeer{
     public endPeer(){
 
     }
-
-
-
 
 }
 
