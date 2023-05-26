@@ -123,6 +123,21 @@
         onInvited(room){
             console.log(room);
         },
+        stunConfig:{
+            turnConfig:[
+                {
+                    username:'test',
+                    credential:'123456',
+                    urls:'turn:172.16.150.3:3478?transport=udp'
+                },
+                {
+                    username:'test',
+                    credential:'123456',
+                    urls:'turn:172.16.150.3:3478?transport=udp'
+                }
+            ],
+            stunUrls:['stun:172.16.150.3:3478?transport=udp']
+        }
     });
 
     //收到邀请

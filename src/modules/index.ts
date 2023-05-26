@@ -31,6 +31,15 @@ class RTCPeer{
         error:(msg:string) => void
     };
 
+    private stunConfig:{
+        turnConfig:{
+            username:string,
+            credential:'',
+            urls:''
+        }[]
+        stunUrls:string[],
+    }
+
     constructor (param:PARAMS) {
         this.message = {
             log (msg){
@@ -40,9 +49,10 @@ class RTCPeer{
                 throw Error(msg);
             }
         };
-        const {myVideoEle,answerELes} = param;
+        const {myVideoEle,answerELes,stunConfig} = param;
         this.myVideoEle = myVideoEle;
         this.answerELes = answerELes;
+        this.stunConfig = stunConfig
         this.status = 0;
         this.listenVideoPlay()
         this.init(param);
@@ -140,14 +150,20 @@ class RTCPeer{
 
     //创建本地sdp并传输
     private startPeer (){
-       const {message,peerListen} = this;
+       const {message,peerListen,stunConfig} = this;
 
         // @ts-ignore
        const PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
        !PeerConnection && message.error('当前浏览器不支持WebRTC！');
-        this.peer = new PeerConnection();
-        peerListen()
 
+       const {turnConfig,stunUrls} = stunConfig;
+
+       const pcConfig = {
+           //@ts-ignore
+           iceServers: [{urls:stunUrls}].concat(turnConfig)
+       };
+       this.peer = new PeerConnection(pcConfig);
+       peerListen()
     }
 
     //发起通话请求

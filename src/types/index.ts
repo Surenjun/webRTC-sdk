@@ -16,11 +16,21 @@ interface PARAMS {
     myVideoEle: HTMLVideoElement | null
     answerELes: (HTMLVideoElement | null)[]
     onInvited?: () => void,
+    stunConfig:StunConfig
 }
 
 interface MESSAGEFn{
     log:(msg:string) => void,
     error:(msg:string) => void
+}
+
+interface StunConfig {
+    turnConfig:{
+        username:string,
+        credential:'',
+        urls:''
+    }[]
+    stunUrls:string[],
 }
 
 interface MESSAGE {
@@ -53,4 +63,4 @@ interface USERLIST{
   avatar:string,
 }[]
 
-export {PARAMS,MESSAGEFn,MESSAGE,USERLIST ,MESSAGETYPE,STATUS};
+export {PARAMS,MESSAGEFn,MESSAGE,USERLIST ,MESSAGETYPE,STATUS,StunConfig};
