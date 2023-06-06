@@ -11,7 +11,7 @@ class DuolunSocket{
     public roomId ?:string
 
     public socket: WebSocket
-    
+
     //远程用户列表
     public userList ?: USERLIST[]
 
@@ -20,7 +20,7 @@ class DuolunSocket{
         error:(msg:string) => void
     };
 
-    constructor(url:string) {
+    constructor(url:string,peerId:string) {
         this.message = {
             log (msg){
                 console.log(msg);
@@ -30,7 +30,7 @@ class DuolunSocket{
             }
         };
 
-        const peerId = crypto.randomUUID();
+        // const peerId = crypto.randomUUID();
         const socket = new WebSocket(`${url}/${peerId}/2`);
         this.peerId = peerId
         this.socket = socket;
@@ -104,7 +104,10 @@ class DuolunSocket{
     //创建房间
     public async createRoom(){
         const {socket,peerId:userID} = this;
-        const roomId = `room-${crypto.randomUUID()}`
+        const array = new Uint32Array(2);
+        crypto.getRandomValues(array);
+
+        const roomId = `room-${array.join(" ")}`
         // 创建房间
         const createData = {
             eventName:"__create",
@@ -115,7 +118,8 @@ class DuolunSocket{
             }
         }
         this.roomId = roomId
-        socket.send(JSON.stringify(createData))
+        socket.send(JSON.stringify(createData));
+        return roomId
     }
 
     //邀请别人进入房间 type:音频｜视频
@@ -132,6 +136,21 @@ class DuolunSocket{
         }
         socket.send(JSON.stringify(inviteData))
     }
+
+    //手动挂断
+    public endRTC(userId:string){
+        const {socket,roomId} = this
+        const endData = {
+            eventName:"__leave",
+            data:{
+                fromId:userId,userId:userId, roomId,
+            }
+        }
+        socket.send(JSON.stringify(endData));
+
+        //TODO webRTC断开
+    }
+
 }
 
 export default DuolunSocket;

@@ -10,13 +10,17 @@
 interface PARAMS {
     //websocket地址
     url: string
+    //http接口url
+    httpUrl:string
+    peerId:string
     //发起方 | 接收方
     type: 'offer' | 'answer'
     //绑定的video元素
     myVideoEle: HTMLVideoElement | null
     answerELes: (HTMLVideoElement | null)[]
     onInvited?: () => void,
-    stunConfig:StunConfig
+    onEndListen?:() => void,
+    iceServers:RTCIceServer[]
 }
 
 interface MESSAGEFn{

@@ -18,7 +18,10 @@ class RTCPeer{
     //是否是发起方
     public isOffer?:Boolean
     public status ?: STATUS
-
+    //@ts-ignore
+    public onLeave:(userId :string)=>void
+    //@ts-ignore
+    public onInvited:(userId :string)=>void
     /*******************************************************************************************************/
 
     private duolunsocket?:typeof DuolunSocket.prototype
@@ -31,14 +34,7 @@ class RTCPeer{
         error:(msg:string) => void
     };
 
-    private stunConfig:{
-        turnConfig:{
-            username:string,
-            credential:'',
-            urls:''
-        }[]
-        stunUrls:string[],
-    }
+    private iceServers:RTCIceServer[]
 
     constructor (param:PARAMS) {
         this.message = {
@@ -49,28 +45,43 @@ class RTCPeer{
                 throw Error(msg);
             }
         };
-        const {myVideoEle,answerELes,stunConfig} = param;
+        const {myVideoEle,answerELes,iceServers} = param;
         this.myVideoEle = myVideoEle;
         this.answerELes = answerELes;
-        this.stunConfig = stunConfig
+        this.iceServers = iceServers
         this.status = 0;
         this.listenVideoPlay()
         this.init(param);
+
+        this.onLeave = (userId) =>{
+            //@ts-ignore
+            param.onEndListen(userId);
+            this.peer?.close();
+        }
+
+        this.onInvited = (userId) =>{
+            //@ts-ignore
+            param.onInvited(userId)
+        }
+
     }
 
     //创建socket服务，并监听
-    private  init (param:PARAMS){
-        const {url,onInvited} = param;
+    private  init =  (param:PARAMS) => {
+        const {url,onInvited,peerId} = param;
         const {startPeer,listenVideoPlay,handleMessage} = this;
-
         //连接远程服务器
-        const duolunSocket = new DuolunSocket(url)
+        const duolunSocket = new DuolunSocket(url,peerId)
         this.duolunsocket = duolunSocket
 
         listenVideoPlay();
         //创建本地sdp
         startPeer()
         this.events = {onInvited}
+
+        //http服务地址初始化
+        //@ts-ignore
+        window.baseHttpUrl = param.httpUrl;
 
         //socket信息监听
         duolunSocket.socket.onmessage = async e => {
@@ -79,12 +90,17 @@ class RTCPeer{
     }
 
     //socket消息处理
-    private async handleMessage(data:string){
+    private  handleMessage = async (data:string) => {
         const socketMessage = JSON.parse(data);
-        const {startSession,peer,listenSession,isOffer,duolunsocket,onInvited} = this;
-        const {eventName,data:{candidate,sdp,room}} = socketMessage;
+        const {startSession,peer,listenSession,isOffer,duolunsocket,onInvited,onLeave} = this;
+        const {eventName,data:{candidate,sdp,room,userID}} = socketMessage;
 
         switch (eventName.split('__')[1]){
+
+            //离开
+            case 'leave':
+                await onLeave(userID)
+                break;
 
             //收到对方邀请通话
             case 'invite':
@@ -93,7 +109,7 @@ class RTCPeer{
 
             //对方接受通话邀请
             case 'new_peer':
-                await startSession('__offer')
+                await startSession('__offer',userID)
                 break;
 
             //添加ice证书
@@ -120,12 +136,8 @@ class RTCPeer{
         }
     }
 
-    public async onInvited(room:string){
-
-    }
-
-    private peerListen(){
-        const {peer,message,answerELes,events,duolunsocket} = this;
+    private peerListen = ()=> {
+        const {peer,message,answerELes,events,duolunsocket,currentPeerId} = this;
 
         peer!.ontrack = e => {
             if (e && e.streams) {
@@ -138,9 +150,11 @@ class RTCPeer{
         };
 
         peer!.onicecandidate = e => {
+            //@ts-ignore
             if (e.candidate) {
                 message.log('搜集并发送候选人');
-                duolunsocket!.sendCandidate('t2',e.candidate.candidate)
+                //@ts-ignore
+                duolunsocket!.sendCandidate(currentPeerId,e.candidate.candidate)
             } else {
                 message.log('候选人收集完成！');
             }
@@ -149,27 +163,24 @@ class RTCPeer{
     }
 
     //创建本地sdp并传输
-    private startPeer (){
-       const {message,peerListen,stunConfig} = this;
+    private startPeer  = () => {
+       const {message,peerListen,iceServers} = this;
 
         // @ts-ignore
        const PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
        !PeerConnection && message.error('当前浏览器不支持WebRTC！');
 
-       const {turnConfig,stunUrls} = stunConfig;
-
-       const pcConfig = {
-           //@ts-ignore
-           iceServers: [{urls:stunUrls}].concat(turnConfig)
-       };
+       const pcConfig = {iceServers};
+       //TODO 暂时为空
        this.peer = new PeerConnection(pcConfig);
-       peerListen()
+        peerListen()
     }
 
+
     //发起通话请求
-    public  startSession = async (eventName:'__offer' | '__answer')=>{
+    public  startSession = async (eventName:'__offer' | '__answer',userID:string)=>{
         //获取本地摄像头
-        const {peer,myVideoEle,message,duolunsocket} = this;
+        const {peer,myVideoEle,message,duolunsocket,currentPeerId} = this;
         let stream: MediaStream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ video: {frameRate:60 }, audio: true });
@@ -192,13 +203,14 @@ class RTCPeer{
         this.isOffer = true
 
         //向服务器更新状态
-        duolunsocket!.sendOffer(eventName,'t2',sdp)
+        // @ts-ignore
+        duolunsocket!.sendOffer(eventName,userID,sdp)
 
     };
 
     //收到对方的sdp信息
     private listenSession =  async (remotePeer:RTCSessionDescription)=>{
-        const {message,duolunsocket,peer} = this;
+        const {message,duolunsocket,peer,currentPeerId} = this;
         let stream: MediaStream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -219,12 +231,13 @@ class RTCPeer{
         const {sdp}= answer
         this.status = 1;
 
-        duolunsocket!.sendOffer('__answer','t2',sdp)
+        // @ts-ignore
+        duolunsocket!.sendOffer('__answer',currentPeerId,sdp)
         await peer!.setLocalDescription(answer);
     }
 
     //摄像头输出
-    private listenVideoPlay(){
+    private listenVideoPlay = () => {
         const {myVideoEle,answerELes,message} = this;
 
         //TODO 目前只考虑一对一的情况
@@ -243,10 +256,19 @@ class RTCPeer{
 
     }
 
-    //结束webRTC通话
-    public endPeer(){
-
+    //邀请别人进入房间 type:音频｜视频
+    public inviteRoom = (type:1|2,remoteUserId:string|number,room:string) =>{
+        const {duolunsocket,peer} = this;
+        duolunsocket?.inviteRoom(type,remoteUserId,room)
     }
+
+    //手动挂断
+    public endRTC(userId:string){
+        const {duolunsocket,peer} = this;
+        duolunsocket?.endRTC(userId);
+        peer?.close();
+    }
+
 
 }
 

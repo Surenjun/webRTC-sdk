@@ -1,3 +1,2 @@
-
-declare const RTCPeer: ClassDecorator
+declare const RTCPeer: ClassDecorator, baseHttpUrl: string;
 
