@@ -18,8 +18,8 @@ interface PARAMS {
     //绑定的video元素
     myVideoEle: HTMLVideoElement | null
     answerELes: (HTMLVideoElement | null)[]
-    onInvited?: () => void,
-    onEndListen?:() => void,
+    onInvited: (userId:string) => void,
+    onEndListen:(userId:string) => void,
     iceServers:RTCIceServer[]
 }
 

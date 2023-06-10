@@ -54,13 +54,11 @@ class RTCPeer{
         this.init(param);
 
         this.onLeave = (userId) =>{
-            //@ts-ignore
             param.onEndListen(userId);
             this.peer?.close();
         }
 
         this.onInvited = (userId) =>{
-            //@ts-ignore
             param.onInvited(userId)
         }
 
@@ -77,11 +75,14 @@ class RTCPeer{
         listenVideoPlay();
         //创建本地sdp
         startPeer()
-        this.events = {onInvited}
 
-        //http服务地址初始化
+        // TODO 时间通信待封装
+        // this.events = {onInvited}
+
+        // TODO http服务地址初始化，待替换
         //@ts-ignore
         window.baseHttpUrl = param.httpUrl;
+
 
         //socket信息监听
         duolunSocket.socket.onmessage = async e => {
@@ -92,7 +93,7 @@ class RTCPeer{
     //socket消息处理
     private  handleMessage = async (data:string) => {
         const socketMessage = JSON.parse(data);
-        const {startSession,peer,listenSession,isOffer,duolunsocket,onInvited,onLeave} = this;
+        const {startSession,listenSession,peer,isOffer,duolunsocket,onInvited,onLeave} = this;
         const {eventName,data:{candidate,sdp,room,userID}} = socketMessage;
 
         switch (eventName.split('__')[1]){

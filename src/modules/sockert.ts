@@ -7,6 +7,8 @@ class DuolunSocket{
 
     //客户端id
     public peerId:string;
+    //远程客户id
+    public remoteUserId?:string|number
     //群聊id
     public roomId ?:string
 
@@ -56,13 +58,13 @@ class DuolunSocket{
 
     }
 
-    //TODO 发送ice证书
+    // 发送ice证书
     public sendCandidate(userID:string,candidate:string){
-        const {socket,peerId:fromID} = this;
+        const {socket,peerId:fromID,remoteUserId} = this;
         socket.send(JSON.stringify({
             eventName:'__ice_candidate',
             data:{
-                userID,
+                userID:remoteUserId,
                 id:'audio',
                 label:0,
                 fromID,
@@ -123,8 +125,9 @@ class DuolunSocket{
     }
 
     //邀请别人进入房间 type:音频｜视频
-    public async inviteRoom(type:1|2,remoteUserId:string|number,room:string){
+    public  inviteRoom =  async (type:1|2,remoteUserId:string|number,room:string) => {
         const {socket,peerId:inviteID} = this
+        this.remoteUserId = remoteUserId
         const inviteData = {
             eventName:"__invite",
             data:{
@@ -143,12 +146,12 @@ class DuolunSocket{
         const endData = {
             eventName:"__leave",
             data:{
-                fromId:userId,userId:userId, roomId,
+                fromId:userId,
+                userId:userId,
+                roomId,
             }
         }
         socket.send(JSON.stringify(endData));
-
-        //TODO webRTC断开
     }
 
 }
