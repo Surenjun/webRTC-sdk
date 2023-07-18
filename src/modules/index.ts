@@ -1,6 +1,8 @@
 import {PARAMS,MESSAGETYPE,MESSAGE,STATUS,USERLIST} from '../types';
 import {getUserList} from "../api";
 import DuolunSocket from "./sockert";
+import sockert from "./sockert";
+
 /**
  * @Description: RTC客户端服务
  * @author: Renjun Su
@@ -13,7 +15,9 @@ class RTCPeer{
     public currentPeerId?: string
     public myVideoEle?: HTMLVideoElement | null
     public answerELes?: (HTMLVideoElement | null)[]
-    public peer?: RTCPeerConnection;
+    public peer?: RTCPeerConnection | null;
+    public stream?:MediaStream
+    public connectTrack?:RTCRtpSender
 
     //是否是发起方
     public isOffer?:Boolean
@@ -117,12 +121,16 @@ class RTCPeer{
             case 'ice_candidate':
                 if(isOffer){
                     const ufragIndex = candidate.split(' ').indexOf('ufrag')
+                    console.log('收到对方的ice证书',candidate);
+
                     await peer!.addIceCandidate({
                         candidate,
                         sdpMLineIndex:0,
                         sdpMid:'0',
                         usernameFragment:candidate.split(' ')[ufragIndex+1]
                     });
+
+
                 }
                 break;
 
@@ -140,27 +148,42 @@ class RTCPeer{
     private peerListen = ()=> {
         const {peer,message,answerELes,events,duolunsocket,currentPeerId} = this;
 
-        peer!.ontrack = e => {
-            if (e && e.streams) {
-                message.log('收到对方音频/视频流数据...');
-                //@ts-ignore
-                events?.onPlay()
-                //@ts-ignore
-                answerELes[0]!.srcObject = e.streams[0];
-            }
-        };
 
-        peer!.onicecandidate = e => {
-            //@ts-ignore
-            if (e.candidate) {
-                message.log('搜集并发送候选人');
-                //@ts-ignore
-                duolunsocket!.sendCandidate(currentPeerId,e.candidate.candidate)
-            } else {
-                message.log('候选人收集完成！');
-            }
-        };
+        if(peer){
+            peer!.ontrack = e => {
+                if (e && e.streams) {
+                    message.log('收到对方音频/视频流数据...');
+                    //@ts-ignore
+                    events?.onPlay()
+                    //@ts-ignore
+                    answerELes[0]!.srcObject = e.streams[0];
+                }
+            };
 
+            peer!.onconnectionstatechange = e =>{
+                if(peer.connectionState === 'connected'){
+                    console.log('webrtc服务连接成功');
+                }
+                if(peer.connectionState === 'disconnected'){
+                    console.log('webrtc服务连接断开');
+                }
+            };
+
+            let i = 0;
+            peer!.onicecandidate = e => {
+
+                // console.log('当前ICE状态:', peer.iceConnectionState);
+
+                i+=1;
+                if (e.candidate) {
+                    message.log('搜集并发送候选人');
+                    //@ts-ignore
+                    duolunsocket!.sendCandidate(currentPeerId,e.candidate.candidate)
+                } else {
+                    message.log('候选人收集完成！');
+                }
+            };
+        }
     }
 
     //创建本地sdp并传输
@@ -171,9 +194,8 @@ class RTCPeer{
        const PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
        !PeerConnection && message.error('当前浏览器不支持WebRTC！');
 
-       const pcConfig = {iceServers};
-       //TODO 暂时为空
-       this.peer = new PeerConnection(pcConfig);
+        this.peer = new PeerConnection({iceServers});
+
         peerListen()
     }
 
@@ -184,7 +206,9 @@ class RTCPeer{
         const {peer,myVideoEle,message,duolunsocket,currentPeerId} = this;
         let stream: MediaStream;
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: {frameRate:60 }, audio: true });
+            // 只开启音频
+            // stream = await navigator.mediaDevices.getUserMedia({ video: {frameRate:60 }, audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             message.log('摄像头/麦克风获取成功！');
             // @ts-ignore
             myVideoEle.srcObject = stream
@@ -194,8 +218,10 @@ class RTCPeer{
         }
 
         stream.getTracks().forEach(track => {
-            peer!.addTrack(track, stream);
+            console.log('视频流轨道',track);
+            this.connectTrack = peer!.addTrack(track, stream);
         });
+        this.stream = stream
 
         message.log('创建本地SDP');
         const offer = await peer!.createOffer();
@@ -214,7 +240,7 @@ class RTCPeer{
         const {message,duolunsocket,peer,currentPeerId} = this;
         let stream: MediaStream;
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             message.log('摄像头/麦克风获取成功！');
             // @ts-ignore
             myVideoEle.srcObject = stream
@@ -254,7 +280,6 @@ class RTCPeer{
             //@ts-ignore
             answerELes[0]!.play();
         }
-
     }
 
     //邀请别人进入房间 type:音频｜视频
@@ -264,10 +289,27 @@ class RTCPeer{
     }
 
     //手动挂断
-    public endRTC(userId:string){
-        const {duolunsocket,peer} = this;
-        duolunsocket?.endRTC(userId);
+    public endRTC = async (userId:string)=>{
+        const {
+            duolunsocket,
+            peer,
+            stream,
+            connectTrack,
+            myVideoEle,
+            answerELes
+        } = this;
+        await duolunsocket?.endRTC(userId);
+        //@ts-ignore
+        myVideoEle?.srcObject?.getTracks().forEach(track => track.stop());
+        //@ts-ignore
+        answerELes?.srcObject?.getTracks().forEach(track => track.stop());
+
+        peer?.removeTrack(connectTrack!);
         peer?.close();
+        this.peer = null;
+        console.log(this.peer);
+        console.log(this.peer,123);
+        duolunsocket?.socket.close()
     }
 
 

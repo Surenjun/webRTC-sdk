@@ -20,6 +20,7 @@ interface PARAMS {
     answerELes: (HTMLVideoElement | null)[]
     onInvited: (userId:string) => void,
     onEndListen:(userId:string) => void,
+    onOpen:() => void,
     iceServers:RTCIceServer[]
 }
 

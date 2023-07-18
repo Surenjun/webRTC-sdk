@@ -22,6 +22,7 @@
             position: relative;
             width: 800px;
             height: 400px;
+            background-color: #F2F6FC;
         }
 
         #remote-video {
@@ -77,60 +78,63 @@
             color: #DD4A68;
         }
     </style>
-<!--    <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.3.4/axios.js"></script>-->
+    <!--    <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.3.4/axios.js"></script>-->
 
 </head>
 <body>
 <div class="container">
     <div class="video-box">
-        <video id="remote-video"></video>
-        <video id="local-video" muted></video>
+        <audio id="remote-video"></audio>
+        <audio id="local-video" muted></audio>
         <div class="buttons start-button">
             <button class="button" onclick="createRoom()">创建房间</button>
             <button class="button" onclick="inviteUser()">邀请别人进入房间</button>
             <button class="button" onclick="endRTC()">挂断</button>
         </div>
-
     </div>
 </div>
 <script>
     // 1.chrome://flags/#unsafely-treat-insecure-origin-as-secure  开放ip安全策略:放开摄像头
-
-    window.baseHttpUrl = 'http://192.168.7.109:5000'
+    // window.baseHttpUrl = 'http://192.168.13.150:5000'
+    window.baseHttpUrl = 'http://192.168.7.100:5000'
 
 </script>
 
-<script src="./dist/webRTC_duolun_0.0.4.js"></script>
+<script src="./dist/webRTC_duolun_0.0.5.js"></script>
 <script>
     const peer = new RTCPeer({
-        url: 'ws://192.168.7.109:5000/ws',
+        url: 'ws://192.168.7.100:5000/ws',
         type: 'offer',
-        peerId: "surenjun",
+        peerId: "surenjun1",
         myVideoEle: document.querySelector('#local-video'),
         answerELes: [document.getElementById('remote-video')],
         onError: () => console.log('error'),
+        onOpen:() => {
+
+        },
         onEndListen:(userId)=>{
             //收到对方断开
             alert(userId)
         },
         onInvited:()=>{
 
-        }
+        },
+        iceServers:[
+            {
+                username:'test',
+                credential:'123456',
+                urls:['turn:192.168.7.188:3478?transport=tcp','turn:192.168.7.188:3478?transport=udp']
+            }
+        ],
 
-
-        // iceServers:[
-        //     {"urls":["stun:stun.l.google.com:19302"]},
-        //     {"urls":["turn:domain.com:8080?transport=udp","turn:domain.com:8080?transport=tcp","turn:domain.com:8080"],"username":"test","credential":"password"}],
-
-        // iceServers:[
-        //     {
-        //         username:'test',
-        //         credential:'123456',
-        //         urls:['turn:192.168.7.110:3478?transport=tcp','turn:192.168.7.110:3478?transport=udp']
-        //     }
-        // ],
     });
 
+    setTimeout(async ()=>{
+        await createRoom();
+        setTimeout(async ()=>{
+            await inviteUser()
+        },3000)
+    },2000)
     let roomId = ''
 
     //创建房间
@@ -149,13 +153,14 @@
     async function inviteUser(){
         const {duolunsocket} = peer;
         //邀请用户
-        peer.inviteRoom(1,'KM3-C18',duolunsocket.roomId)
+        peer.inviteRoom(1,'KM2-C2',duolunsocket.roomId)
+        //peer.inviteRoom(1,'zww',duolunsocket.roomId)
     }
 
     const endRTC = ()=>{
         //手动结束语音
-        peer.endRTC('KM3-C18');
-        peer.close();
+        peer.endRTC('surenjun');
+        // peer.peer.close();
     }
 
 

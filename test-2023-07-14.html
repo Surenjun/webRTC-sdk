@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+  <audio id="local-video" muted></audio>
+  <button class="button" onclick="end()">关闭语音</button>
+  <script>
+    let oneStream,rtc;
+     const fn = async ()=>{
+         rtc = new RTCPeerConnection()
+         rtc.getStats().then((res)=>{
+             res.forEach(item=>{
+                 console.log(item);
+             })
+         })
+         const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+         const audio = document.getElementById('local-video');
+         oneStream = stream;
+         audio.srcObject = stream;
+         audio.play();
+     }
+     fn();
+     function end(){
+       const tracks = oneStream.getTracks();
+       tracks[0].stop();
+       rtc.close()
+     }
+
+  </script>
+</body>
+</html>

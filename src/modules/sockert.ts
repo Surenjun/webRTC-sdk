@@ -141,7 +141,7 @@ class DuolunSocket{
     }
 
     //手动挂断
-    public endRTC(userId:string){
+    public endRTC = async (userId:string) =>{
         const {socket,roomId} = this
         const endData = {
             eventName:"__leave",
@@ -152,6 +152,8 @@ class DuolunSocket{
             }
         }
         socket.send(JSON.stringify(endData));
+        socket.close();
+
     }
 
 }

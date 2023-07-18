@@ -6,7 +6,7 @@ import builtins from 'rollup-plugin-node-builtins';
 const config = {
     input: 'src/main.ts',
     output: {
-        file: 'dist/webRTC_duolun_0.0.4.js',
+        file: 'dist/webRTC_duolun_0.0.5.js',
         format: 'cjs',
         name: '[name].cjs.js',
         sourcemap: false
